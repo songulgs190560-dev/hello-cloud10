@@ -4,10 +4,11 @@ import psycopg2
 
 app = Flask(__name__)
 
-# Render'ın otomatik tanımladığı veritabanı bağlantı bilgisi (DATABASE_URL ortam değişkeni)
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://hello_cloud10_user:ctonMm4q3cd1XHrDzgmntHyX0W1cWgs0@dpg-d4g02q6mcj7s73co72p0-a.oregon-postgres.render.com/hello_cloud10")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://hello_cloud10_user:ctonMm4q3cd1XHrDzgmntHyX0W1cWgs0@dpg-d4g02q6mcj7s73co72p0-a.oregon-postgres.render.com/hello_cloud10"
+)
 
-# HTML ŞABLONU (tek sayfada form + liste)
 HTML = """
 <!doctype html>
 <html>
@@ -26,10 +27,12 @@ HTML = """
 <body>
     <h1>☁️ Buluttan Selam!</h1>
     <p>Adını yaz, selamını bırak 👇</p>
+
     <form method="POST">
         <input type="text" name="isim" placeholder="Adını yaz" required>
         <button type="submit">Gönder</button>
     </form>
+
     <h3>Ziyaretçiler:</h3>
     <ul>
         {% for ad in isimler %}
@@ -41,27 +44,37 @@ HTML = """
 """
 
 def connect_db():
-    conn = psycopg2.connect(DATABASE_URL)
-    return conn
+    return psycopg2.connect(
+        DATABASE_URL,
+        sslmode="require"   # 🔥 Render için şart
+    )
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     conn = connect_db()
     cur = conn.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS ziyaretciler (id SERIAL PRIMARY KEY, isim TEXT)")
-    
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ziyaretciler (
+            id SERIAL PRIMARY KEY,
+            isim TEXT
+        )
+    """)
+
     if request.method == "POST":
         isim = request.form.get("isim")
         if isim:
             cur.execute("INSERT INTO ziyaretciler (isim) VALUES (%s)", (isim,))
             conn.commit()
-    
+
     cur.execute("SELECT isim FROM ziyaretciler ORDER BY id DESC LIMIT 10")
     isimler = [row[0] for row in cur.fetchall()]
-    
+
     cur.close()
     conn.close()
+
     return render_template_string(HTML, isimler=isimler)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    port = int(os.getenv("PORT", 5000))  # 🔥 Render portu
+    app.run(host="0.0.0.0", port=port)
